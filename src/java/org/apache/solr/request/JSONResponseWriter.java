@@ -31,6 +31,7 @@ import org.apache.solr.search.DocIterator;
 import org.apache.solr.search.DocList;
 import org.apache.solr.search.SolrIndexSearcher;
 
+import java.io.CharArrayWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.*;
@@ -46,11 +47,15 @@ public class JSONResponseWriter implements QueryResponseWriter {
   }
 
   public void write(Writer writer, SolrQueryRequest req, SolrQueryResponse rsp) throws IOException {
-    JSONWriter w = new JSONWriter(writer, req, rsp);
+    CharArrayWriter safeWriter = new CharArrayWriter();
+    JSONWriter w = new JSONWriter(safeWriter, req, rsp);
+    w.writeResponse();
+    safeWriter.flush();
+    safeWriter.close();
     try {
-      w.writeResponse();
+      writer.write(safeWriter.toString());
     } finally {
-      w.close();
+      writer.flush();
     }
   }
 
@@ -161,7 +166,7 @@ class JSONWriter extends TextResponseWriter {
   /** Represents a NamedList directly as a JSON Object (essentially a Map)
    * repeating any keys if they are repeated in the NamedList.  null is mapped
    * to "".
-   */ 
+   */
   protected void writeNamedListAsMapWithDups(String name, NamedList val) throws IOException {
     int sz = val.size();
     writeMapOpener(sz);
@@ -330,7 +335,10 @@ class JSONWriter extends TextResponseWriter {
 
       // if the field is multivalued, it may have other values further on... so
       // build up a list for each multi-valued field.
-      SchemaField sf = schema.getField(fname);
+      SchemaField sf = schema.getFieldOrNull(fname);
+      if( sf == null ) {
+        sf = new SchemaField( fname, new TextField() );
+      }
       if (sf.multiValued()) {
         MultiValueField mf = multi.get(fname);
         if (mf==null) {
@@ -549,7 +557,7 @@ class JSONWriter extends TextResponseWriter {
       } else {
         writeArraySeparator();
       }
-      indent();      
+      indent();
       writeSolrDocument(null, doc, fields, otherFields);
     }
     decLevel();
@@ -568,32 +576,36 @@ class JSONWriter extends TextResponseWriter {
   //
   // Data structure tokens
   // NOTE: a positive size paramater indicates the number of elements
-  //       contained in an array or map, a negative value indicates 
+  //       contained in an array or map, a negative value indicates
   //       that the size could not be reliably determined.
-  // 
-  
+  //
+
   public void writeMapOpener(int size) throws IOException, IllegalArgumentException {
     writer.write('{');
+    writer.flush();
   }
-  
+
   public void writeMapSeparator() throws IOException {
     writer.write(',');
   }
 
   public void writeMapCloser() throws IOException {
     writer.write('}');
+    writer.flush();
   }
-  
+
   public void writeArrayOpener(int size) throws IOException, IllegalArgumentException {
     writer.write('[');
+    writer.flush();
   }
-  
+
   public void writeArraySeparator() throws IOException {
     writer.write(',');
   }
 
   public void writeArrayCloser() throws IOException {
     writer.write(']');
+    writer.flush();
   }
 
   public void writeStr(String name, String val, boolean needsEscaping) throws IOException {
@@ -810,7 +822,7 @@ class JSONWriter extends TextResponseWriter {
 }
 
 abstract class NaNFloatWriter extends JSONWriter {
-  
+
   abstract protected String getNaN();
   abstract protected String getInf();
 
