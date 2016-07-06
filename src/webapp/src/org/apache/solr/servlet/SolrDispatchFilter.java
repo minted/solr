@@ -339,6 +339,7 @@ public class SolrDispatchFilter implements Filter
   }
 
   protected void sendError(HttpServletResponse res, Throwable ex) throws IOException {
+    log.info("We have reached the sendError function. ****************");
     int code=500;
     String trace = "";
     if( ex instanceof SolrException ) {
@@ -359,6 +360,8 @@ public class SolrDispatchFilter implements Filter
         code = 500;
       }
     }
+    // THIS IS YOUR PATCHED LINE HERE:
+    log.warn("sendError :"+ (ex.getMessage() + trace));
     res.sendError( code, ex.getMessage() + trace );
   }
 
